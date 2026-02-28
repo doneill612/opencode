@@ -15,7 +15,7 @@ import { Link } from "./link"
 
 let demoSoundState = {
   cleanup: undefined as (() => void) | undefined,
-  timeout: undefined as NodeJS.Timeout | undefined,
+  timeout: undefined as ReturnType<typeof setTimeout> | undefined,
 }
 
 // To prevent audio from overlapping/playing very quickly when navigating the settings menus,

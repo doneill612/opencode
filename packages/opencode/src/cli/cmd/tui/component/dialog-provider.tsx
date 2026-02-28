@@ -85,7 +85,32 @@ export function createDialogProviderOptions() {
             }
           }
           if (method.type === "api") {
-            return dialog.replace(() => <ApiMethod providerID={provider.id} title={method.label} />)
+            const inputMethod = await new Promise<"static" | "helper" | null>((resolve) => {
+              dialog.replace(
+                () => (
+                  <DialogSelect
+                    title="Select input method"
+                    options={[
+                      { title: "Static key", value: "static" as const, description: "Enter an API key directly" },
+                      {
+                        title: "Key helper script",
+                        value: "helper" as const,
+                        description: "Run a script to generate a token",
+                      },
+                    ]}
+                    onSelect={(option) => resolve(option.value)}
+                  />
+                ),
+                () => resolve(null),
+              )
+            })
+            if (inputMethod === null) return
+            if (inputMethod === "static") {
+              return dialog.replace(() => <ApiMethod providerID={provider.id} title={method.label} />)
+            }
+            if (inputMethod === "helper") {
+              return dialog.replace(() => <ApiKeyHelperMethod providerID={provider.id} title={method.label} />)
+            }
           }
         },
       })),
@@ -197,6 +222,44 @@ function CodeMethod(props: CodeMethodProps) {
           </Show>
         </box>
       )}
+    />
+  )
+}
+
+interface ApiKeyHelperMethodProps {
+  providerID: string
+  title: string
+}
+function ApiKeyHelperMethod(props: ApiKeyHelperMethodProps) {
+  const dialog = useDialog()
+  const sdk = useSDK()
+  const sync = useSync()
+  const { theme } = useTheme()
+
+  return (
+    <DialogPrompt
+      title={props.title}
+      placeholder="Script or command (e.g. ~/get-token.sh)"
+      description={() => (
+        <text fg={theme.textMuted}>
+          The command will be executed to obtain a token. Its stdout is used as the Bearer token.
+        </text>
+      )}
+      onConfirm={async (value) => {
+        if (!value) return
+        await sdk.client.global.config.update({
+          config: {
+            provider: {
+              [props.providerID]: {
+                options: { apiKeyHelper: value },
+              },
+            },
+          },
+        })
+        await sdk.client.instance.dispose()
+        await sync.bootstrap()
+        dialog.replace(() => <DialogModel providerID={props.providerID} />)
+      }}
     />
   )
 }

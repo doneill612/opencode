@@ -971,6 +971,18 @@ export namespace Config {
             .describe(
               "Timeout in milliseconds for requests to this provider. Default is 300000 (5 minutes). Set to false to disable timeout.",
             ),
+          apiKeyHelper: z.string().optional().describe(
+            "Command that outputs a dynamic API key on stdout. The key is sent as 'Authorization: Bearer <token>'. Accepts a script path (absolute or home-relative ~/...) or a command string with arguments.",
+          ),
+          apiKeyHelperTTL: z.number().int().positive().optional().describe(
+            "Milliseconds before re-running the apiKeyHelper script (default: 3600000 = 1 hour).",
+          ),
+          customAuthHeaders: z.array(z.string()).optional().describe(
+            "Additional header names to inject alongside the Authorization header when using apiKeyHelper. Each listed header is set to the raw dynamic token value. Example: [\"X-Api-Key\"].",
+          ),
+          customHeaders: z.record(z.string(), z.string()).optional().describe(
+            "Static arbitrary headers to include with every request to this provider. Example: {\"X-Team\": \"engineering\"}.",
+          ),
         })
         .catchall(z.any())
         .optional(),
