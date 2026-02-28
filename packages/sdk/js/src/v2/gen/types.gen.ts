@@ -1223,7 +1223,36 @@ export type ProviderConfig = {
      * Timeout in milliseconds for requests to this provider. Default is 300000 (5 minutes). Set to false to disable timeout.
      */
     timeout?: number | false
-    [key: string]: unknown | string | boolean | number | false | undefined
+    /**
+     * Path to a script that outputs a dynamic API key on stdout. The key is sent as 'Authorization: Bearer <token>'. Supports any absolute or home-relative (~/...) path.
+     */
+    apiKeyHelper?: string
+    /**
+     * Milliseconds before re-running the apiKeyHelper script (default: 3600000 = 1 hour).
+     */
+    apiKeyHelperTTL?: number
+    /**
+     * Additional header names to inject alongside the Authorization header when using apiKeyHelper. Each listed header is set to the raw dynamic token value. Example: ["X-Api-Key"].
+     */
+    customAuthHeaders?: Array<string>
+    /**
+     * Static arbitrary headers to include with every request to this provider. Example: {"X-Team": "engineering"}.
+     */
+    customHeaders?: {
+      [key: string]: string
+    }
+    [key: string]:
+      | unknown
+      | string
+      | boolean
+      | number
+      | false
+      | number
+      | Array<string>
+      | {
+          [key: string]: string
+        }
+      | undefined
   }
 }
 
