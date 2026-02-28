@@ -17,6 +17,7 @@ import { iife } from "@/util/iife"
 import { Global } from "../global"
 import path from "path"
 import { Filesystem } from "../util/filesystem"
+import { Process } from "../util/process"
 
 // Direct imports for bundled providers
 import { createAmazonBedrock, type AmazonBedrockProviderSettings } from "@ai-sdk/amazon-bedrock"
@@ -1068,6 +1069,38 @@ export namespace Provider {
       const existing = s.sdk.get(key)
       if (existing) return existing
 
+      // Extract apiKeyHelper options — must be removed before they reach the SDK factory
+      const apiKeyHelperScript = options["apiKeyHelper"] as string | undefined
+      const apiKeyHelperTTL = (options["apiKeyHelperTTL"] as number | undefined) ?? 3_600_000
+      const customAuthHeaders = options["customAuthHeaders"] as string[] | undefined
+      const customHeaders = options["customHeaders"] as Record<string, string> | undefined
+      delete options["apiKeyHelper"]
+      delete options["apiKeyHelperTTL"]
+      delete options["customAuthHeaders"]
+      delete options["customHeaders"]
+
+      // Per-SDK-instance token cache
+      let helperCachedKey: string | null = null
+      let helperCacheExpiry = 0
+
+      async function resolveHelperKey(): Promise<string> {
+        const now = Date.now()
+        if (helperCachedKey !== null && now < helperCacheExpiry) return helperCachedKey
+
+        const expandedPath = apiKeyHelperScript!.startsWith("~/")
+          ? path.join(os.homedir(), apiKeyHelperScript!.slice(2))
+          : apiKeyHelperScript!
+
+        log.info("running apiKeyHelper", { script: expandedPath })
+        const result = await Process.run([expandedPath])
+        const key = result.stdout.toString().trim()
+        if (!key) throw new Error(`apiKeyHelper returned empty output: ${apiKeyHelperScript}`)
+
+        helperCachedKey = key
+        helperCacheExpiry = now + apiKeyHelperTTL
+        return key
+      }
+
       const customFetch = options["fetch"]
 
       options["fetch"] = async (input: any, init?: BunFetchRequestInit) => {
@@ -1101,6 +1134,28 @@ export namespace Provider {
             }
             opts.body = JSON.stringify(body)
           }
+        }
+
+        // Inject dynamic auth token from apiKeyHelper
+        if (apiKeyHelperScript) {
+          const token = await resolveHelperKey()
+          const headers = new Headers(opts.headers as HeadersInit | undefined)
+          headers.set("Authorization", `Bearer ${token}`)
+          if (customAuthHeaders) {
+            for (const name of customAuthHeaders) {
+              headers.set(name, token)
+            }
+          }
+          opts.headers = headers
+        }
+
+        // Inject static custom headers
+        if (customHeaders) {
+          const headers = new Headers(opts.headers as HeadersInit | undefined)
+          for (const [name, value] of Object.entries(customHeaders)) {
+            headers.set(name, value)
+          }
+          opts.headers = headers
         }
 
         return fetchFn(input, {
