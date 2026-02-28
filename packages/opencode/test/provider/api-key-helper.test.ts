@@ -166,7 +166,10 @@ describe("home-relative path expansion", () => {
 describe("apiKeyHelper fetch integration", () => {
   const scripts: string[] = []
   afterEach(async () => {
-    for (const s of scripts.splice(0)) await fs.rm(s, { force: true })
+    for (const s of scripts.splice(0)) {
+      await fs.rm(s, { force: true })
+      await fs.rm(s + ".count", { force: true }) // counter file used by TTL test scripts
+    }
   })
 
   async function helper(content: string): Promise<string> {
@@ -302,8 +305,10 @@ describe("apiKeyHelper fetch integration", () => {
   })
 
   test("TTL caching: script is not re-run within the TTL window", async () => {
-    // Script outputs a timestamp so re-runs produce different values
-    const script = await helper("#!/bin/sh\necho \"token-$(date +%s%3N)\"")
+    // Script increments a counter file on each real execution; cached calls won't re-run it
+    const script = await helper(
+      `#!/bin/sh\nCOUNT="\${0}.count"\nN=$(cat "$COUNT" 2>/dev/null || echo 0)\nN=$((N + 1))\necho "$N" > "$COUNT"\necho "token-$N"`,
+    )
     const authValues: Array<string | null> = []
     const original = globalThis.fetch
     globalThis.fetch = (async (_input: any, init: any) => {
@@ -343,7 +348,9 @@ describe("apiKeyHelper fetch integration", () => {
   })
 
   test("TTL caching: script is re-run after the TTL expires", async () => {
-    const script = await helper("#!/bin/sh\necho \"token-$(date +%s%3N)\"")
+    const script = await helper(
+      `#!/bin/sh\nCOUNT="\${0}.count"\nN=$(cat "$COUNT" 2>/dev/null || echo 0)\nN=$((N + 1))\necho "$N" > "$COUNT"\necho "token-$N"`,
+    )
     const authValues: Array<string | null> = []
     const original = globalThis.fetch
     globalThis.fetch = (async (_input: any, init: any) => {
