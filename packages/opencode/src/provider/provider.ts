@@ -1087,12 +1087,14 @@ export namespace Provider {
         const now = Date.now()
         if (helperCachedKey !== null && now < helperCacheExpiry) return helperCachedKey
 
-        const expandedPath = apiKeyHelperScript!.startsWith("~/")
-          ? path.join(os.homedir(), apiKeyHelperScript!.slice(2))
-          : apiKeyHelperScript!
+        const parts = apiKeyHelperScript!.split(/\s+/).filter(Boolean)
+        const expandedCmd = parts[0].startsWith("~/")
+          ? path.join(os.homedir(), parts[0].slice(2))
+          : parts[0]
+        const cmd = [expandedCmd, ...parts.slice(1)]
 
-        log.info("running apiKeyHelper", { script: expandedPath })
-        const result = await Process.run([expandedPath])
+        log.info("running apiKeyHelper", { cmd })
+        const result = await Process.run(cmd)
         const key = result.stdout.toString().trim()
         if (!key) throw new Error(`apiKeyHelper returned empty output: ${apiKeyHelperScript}`)
 
@@ -1163,6 +1165,14 @@ export namespace Provider {
           // @ts-ignore see here: https://github.com/oven-sh/bun/issues/16682
           timeout: false,
         })
+      }
+
+      // When using apiKeyHelper without a static key, provider SDKs that validate
+      // apiKey at construction time (e.g. Anthropic) would throw before our custom
+      // fetch can inject the real token. Pass a placeholder so construction succeeds;
+      // the actual Authorization header is overridden in the fetch wrapper above.
+      if (apiKeyHelperScript && !options["apiKey"]) {
+        options["apiKey"] = "helper"
       }
 
       const bundledFn = BUNDLED_PROVIDERS[model.api.npm]
