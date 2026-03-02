@@ -15,8 +15,8 @@ process.chdir(dir)
 import { Script } from "@opencode-ai/script"
 import pkg from "../package.json"
 
-const modelsUrl = process.env.OPENCODE_MODELS_URL || "https://models.dev"
-// Fetch and generate models.dev snapshot
+const modelsUrl = process.env.OPENCODE_MODELS_URL ?? "http://localhost:3000"
+// Fetch and generate models snapshot
 const modelsData = process.env.MODELS_DEV_API_JSON
   ? await Bun.file(process.env.MODELS_DEV_API_JSON).text()
   : await fetch(`${modelsUrl}/api.json`).then((x) => x.text())
